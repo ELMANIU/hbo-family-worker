@@ -1,79 +1,104 @@
-export default {
+// HBO FAMILY WORKER
+// Canal HLS lineal 24/7
+// Peliculas + Series + Comercial
 
-async fetch(request, env) {
+
+const WORKER_VERSION = "1.0.0";
 
 
-const url = new URL(request.url);
-
-const canal =
-url.searchParams.get("canal") || "hbo_family";
-
+// =========================
+// CONTENIDO
+// =========================
 
 
 const CANALES = {
-
 
 hbo_family:{
 
 
 nombre:"HBO FAMILY HD",
 
+descripcion:
+"Películas y series familiares 24/7",
 
-comercial:{
 
-titulo:"PROMO HBO FAMILY",
+epoch:
+Date.UTC(2026,0,1,0,0,0)/1000,
 
-duracion:90,
 
+intervaloComercialesMinutos:15,
+
+comercialEntreProgramas:true,
+
+
+
+programas:[
+
+
+{
+nombre:"SHREK",
+tipo:"pelicula",
 url:
-"https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.caa.mp4?u=0&b=0"
-
+"https://hugh.cdn.rumble.cloud/video/fwe2/44/s8/2/S/4/Q/2/S4Q2A.gaa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=1490550784-1490607269"
 },
 
 
 
-programacion:[
-
-
 {
-titulo:"SHREK",
-duracion:5400,
-url:"https://hugh.cdn.rumble.cloud/video/fwe2/44/s8/2/S/4/Q/2/S4Q2A.gaa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=1490550784-1490607269"
+nombre:"LAS CHICAS SUPERPODEROSAS T1 E01",
+tipo:"serie",
+url:
+"https://hugh.cdn.rumble.cloud/video/fww1/8c/s8/2/a/2/R/2/a2R2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701743616-701757342"
 },
 
 
+
 {
-titulo:"LAS CHICAS SUPERPODEROSAS T1 E01",
-duracion:1320,
-url:"https://hugh.cdn.rumble.cloud/video/fww1/8c/s8/2/a/2/R/2/a2R2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701743616-701757342"
+nombre:"LAS CHICAS SUPERPODEROSAS T1 E02",
+tipo:"serie",
+url:
+"https://hugh.cdn.rumble.cloud/video/fww1/9a/s8/2/I/k/S/2/IkS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701710848-701724579"
 },
 
 
+
 {
-titulo:"LAS CHICAS SUPERPODEROSAS T1 E02",
-duracion:1320,
-url:"https://hugh.cdn.rumble.cloud/video/fww1/9a/s8/2/I/k/S/2/IkS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701710848-701724579"
+nombre:"LAS CHICAS SUPERPODEROSAS T1 E03",
+tipo:"serie",
+url:
+"https://hugh.cdn.rumble.cloud/video/fww1/9f/s8/2/K/v/S/2/KvS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=696461312-696474940"
 },
 
 
+
 {
-titulo:"LAS CHICAS SUPERPODEROSAS T1 E03",
-duracion:1320,
-url:"https://hugh.cdn.rumble.cloud/video/fww1/9f/s8/2/K/v/S/2/KvS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=696461312-696474940"
+nombre:"TOM Y JERRY LA PELÍCULA",
+tipo:"pelicula",
+url:"PON_AQUI_LINK_TOM_JERRY"
 },
 
 
+
 {
-titulo:"TOM Y JERRY LA PELÍCULA",
-duracion:4800,
-url:"URL_TOM_JERRY"
-},
+nombre:"LOS CROODS",
+tipo:"pelicula",
+url:"PON_AQUI_LINK_CROODS"
+}
+
+
+],
+
+
+
+comerciales:[
 
 
 {
-titulo:"LOS CROODS",
-duracion:5700,
-url:"URL_LOS_CROODS"
+nombre:"PROMO HBO FAMILY",
+tipo:"comercial",
+url:
+"https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.caa.mp4",
+maxDurationSeconds:90
 }
 
 
@@ -81,117 +106,127 @@ url:"URL_LOS_CROODS"
 
 }
 
+
 };
 
 
 
 
+// =========================
+// CONFIG HLS
+// =========================
 
-const CONFIG =
-CANALES[canal];
 
-
-
-if(!CONFIG){
-
-return new Response(
-"Canal inexistente",
-{status:404}
-);
-
-}
+const SEGMENTOS_ATRAS = 10;
+const SEGMENTOS_ADELANTE = 12;
 
 
 
-
-/*
-==============================
-HORA MÉXICO
-==============================
-*/
-
-
-const mexico = new Date(
-
-new Date()
-
-.toLocaleString(
-"en-US",
-{
-timeZone:"America/Mexico_City"
-}
-
-)
-
-);
+let cacheSchedule=null;
 
 
 
-const reloj =
-Math.floor(
-mexico.getTime()/1000
-);
+// =========================
+// CARGAR M3U8
+// =========================
 
 
+async function cargarPlaylist(url){
 
 
+const r = await fetch(url);
+
+const txt = await r.text();
 
 
-/*
-==============================
-ARMAR PROGRAMACIÓN
-COMERCIAL CADA 15 MIN
-==============================
-*/
+return txt.split("\n")
 
-
-let ciclo=[];
-
-let contador=0;
-
-
-
-for(const item of CONFIG.programacion){
-
-
-ciclo.push(item);
-
-
-contador += item.duracion;
-
-
-
-while(contador >= 900){
-
-
-ciclo.push(CONFIG.comercial);
-
-
-contador -=900;
-
+.filter(x=>x && !x.startsWith("#EXT-X-ENDLIST"))
 
 }
+
+
+async function construirHorario(){
+
+
+let lista=[];
+
+
+const canal=CANALES.hbo_family;
+
+
+
+for(const programa of canal.programas){
+
+
+lista.push({
+
+...programa,
+
+duracion:3600
+
+});
+
+
+
+// comercial cada bloque
+
+lista.push({
+
+...canal.comerciales[0],
+
+duracion:90
+
+});
 
 
 }
 
 
 
+return lista;
 
-
-
-const duracionTotal =
-ciclo.reduce(
-(a,b)=>a+b.duracion,
-0
-);
+}
 
 
 
 
+function tiempoActual(){
 
-let posicion =
-reloj % duracionTotal;
+
+return Math.floor(Date.now()/1000);
+
+}
+
+
+
+
+
+// =========================
+// GENERADOR PLAYLIST
+// =========================
+
+
+async function generarM3U8(){
+
+
+const horario =
+await construirHorario();
+
+
+
+let total=0;
+
+
+for(const x of horario)
+
+total+=x.duracion;
+
+
+
+let pos =
+tiempoActual() %
+total;
 
 
 
@@ -199,10 +234,10 @@ let actual;
 
 
 
-for(const item of ciclo){
+for(const item of horario){
 
 
-if(posicion < item.duracion){
+if(pos < item.duracion){
 
 actual=item;
 
@@ -211,7 +246,70 @@ break;
 }
 
 
-posicion -= item.duracion;
+pos-=item.duracion;
+
+
+}
+
+
+
+if(!actual)
+
+actual=horario[0];
+
+
+
+let segmentos =
+await cargarPlaylist(actual.url);
+
+
+
+let salida=[
+
+"#EXTM3U",
+
+"#EXT-X-VERSION:3",
+
+"#EXT-X-TARGETDURATION:10",
+
+"#EXT-X-MEDIA-SEQUENCE:0"
+
+];
+
+
+
+let contador=0;
+
+
+
+for(const seg of segmentos){
+
+
+if(seg.startsWith("#"))
+
+salida.push(seg);
+
+else{
+
+
+salida.push(seg);
+
+contador++;
+
+
+if(contador>SEGMENTOS_ADELANTE)
+
+break;
+
+
+}
+
+
+}
+
+
+
+return salida.join("\n");
 
 
 }
@@ -220,12 +318,20 @@ posicion -= item.duracion;
 
 
 
+// =========================
+// WORKER
+// =========================
 
-/*
-==============================
-LISTA M3U
-==============================
-*/
+
+
+export default {
+
+
+async fetch(request){
+
+
+const url=new URL(request.url);
+
 
 
 if(url.pathname==="/"){
@@ -233,120 +339,78 @@ if(url.pathname==="/"){
 
 return new Response(
 
-`#EXTM3U
-
-#EXTINF:-1 tvg-id="hbo_family" tvg-name="HBO FAMILY HD",HBO FAMILY HD
-${url.origin}/live.m3u8?canal=${canal}
-
-`,
-
-{
-
-headers:{
-"Content-Type":"application/x-mpegURL"
-}
-
-}
-
-);
-
-}
-
-
-
-
-
-/*
-==============================
-HLS DINÁMICO
-==============================
-*/
-
-
-if(url.pathname==="/live.m3u8"){
-
-
-
-return new Response(
-
-`#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:${actual.duracion}
-
-#EXTINF:${actual.duracion},${actual.titulo}
-${actual.url}
-
-`,
-
-{
-
-headers:{
-
-"Content-Type":
-"application/vnd.apple.mpegurl",
-
-"Cache-Control":
-"no-cache"
-
-}
-
-}
-
-);
-
-
-
-}
-
-
-
-
-
-
-/*
-==============================
-STATUS
-==============================
-*/
-
-
-if(url.pathname==="/status"){
-
-
-return new Response(
-
 JSON.stringify({
 
-canal:CONFIG.nombre,
+servicio:"HBO FAMILY WORKER",
 
-ahora:actual.titulo,
+version:WORKER_VERSION,
 
-restante:actual.duracion-posicion,
-
-hora:mexico.toISOString()
+live:
+url.origin+"/hbo_family/live.m3u8"
 
 },null,2),
 
 {
 
 headers:{
-"Content-Type":"application/json"
+"content-type":"application/json"
 }
 
 }
 
 );
 
-
 }
+
+
+
+
+if(url.pathname==="/hbo_family/live.m3u8"){
+
+
+
+const playlist =
+await generarM3U8();
 
 
 
 return new Response(
-"OK"
+
+playlist,
+
+{
+
+headers:{
+
+"content-type":
+"application/vnd.apple.mpegurl",
+
+"cache-control":
+"no-cache,no-store"
+
+}
+
+}
+
 );
 
 
 }
+
+
+
+
+
+return new Response(
+
+"Ruta no encontrada",
+
+{status:404}
+
+);
+
+
+}
+
 
 };
