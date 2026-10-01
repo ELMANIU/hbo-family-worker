@@ -1,0 +1,13 @@
+name = "hbo-family-worker"
+
+main = "index.js"
+
+compatibility_date = "2026-10-01"
+
+
+# Configuración del Worker
+workers_dev = true
+
+
+[observability]
+enabled = true
