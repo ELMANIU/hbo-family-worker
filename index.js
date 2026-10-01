@@ -33,52 +33,70 @@ url:
 },
 
 
+
 programacion:[
 
 
 {
 titulo:"SHREK",
 duracion:5400,
-url:"URL_SHREK"
+tipo:"m3u8",
+url:
+"https://hugh.cdn.rumble.cloud/video/fwe2/44/s8/2/S/4/Q/2/S4Q2A.gaa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=1490550784-1490607269"
 },
+
 
 
 {
-titulo:"LAS CHICAS SUPERPODEROSAS T1 E01",
+titulo:"LAS CHICAS SUPERPODEROSAS - T1 E01",
 duracion:1320,
-url:"URL_E01"
+tipo:"m3u8",
+url:
+"https://hugh.cdn.rumble.cloud/video/fww1/8c/s8/2/a/2/R/2/a2R2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701743616-701757342"
 },
+
 
 
 {
-titulo:"LAS CHICAS SUPERPODEROSAS T1 E02",
+titulo:"LAS CHICAS SUPERPODEROSAS - T1 E02",
 duracion:1320,
-url:"URL_E02"
+tipo:"m3u8",
+url:
+"https://hugh.cdn.rumble.cloud/video/fww1/9a/s8/2/I/k/S/2/IkS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701710848-701724579"
 },
+
 
 
 {
-titulo:"LAS CHICAS SUPERPODEROSAS T1 E03",
+titulo:"LAS CHICAS SUPERPODEROSAS - T1 E03",
 duracion:1320,
-url:"URL_E03"
+tipo:"m3u8",
+url:
+"https://hugh.cdn.rumble.cloud/video/fww1/9f/s8/2/K/v/S/2/KvS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=696461312-696474940"
 },
+
 
 
 {
 titulo:"TOM Y JERRY LA PELÍCULA",
 duracion:4800,
+tipo:"m3u8",
 url:"URL_TOM_JERRY"
 },
+
 
 
 {
 titulo:"LOS CROODS",
 duracion:5700,
-url:"URL_CROODS"
+tipo:"m3u8",
+url:"URL_LOS_CROODS"
 }
 
 
+
 ]
+
 
 },
 
@@ -99,7 +117,7 @@ duracion:90,
 
 tipo:"mp4",
 
-url:"PROMO_FENIX"
+url:"URL_PROMO_FENIX"
 
 },
 
@@ -125,7 +143,7 @@ duracion:90,
 
 tipo:"mp4",
 
-url:"PROMO_MIX"
+url:"URL_PROMO_MIX"
 
 },
 
@@ -135,7 +153,9 @@ programacion:[]
 }
 
 
+
 };
+
 
 
 
@@ -145,13 +165,18 @@ const CONFIG =
 CANALES[canal];
 
 
+
 if(!CONFIG){
 
+
 return new Response(
+
 "Canal no existe",
+
 {
 status:404
 }
+
 );
 
 }
@@ -159,56 +184,79 @@ status:404
 
 
 
+
+
+
 /*
-===============================
+================================
 HORA MÉXICO
-===============================
+================================
 */
 
 
 const mexico =
+
 new Date(
+
 new Date()
+
 .toLocaleString(
+
 "en-US",
+
 {
-timeZone:"America/Mexico_City"
+
+timeZone:
+"America/Mexico_City"
+
 }
+
 )
+
 );
 
 
 
-const ahora =
+
+
+const tiempo =
+
 Math.floor(
+
 mexico.getTime()/1000
+
 );
+
+
 
 
 
 
 
 /*
-===============================
-CREAR CICLO LINEAL
+================================
+CREAR CICLO DEL CANAL
 COMERCIAL CADA 15 MINUTOS
-===============================
+================================
 */
 
 
 let ciclo=[];
 
+
 let contador=0;
 
 
 
-for(const contenido of CONFIG.programacion){
+for(const item of CONFIG.programacion){
 
 
-ciclo.push(contenido);
+ciclo.push(item);
 
 
-contador += contenido.duration;
+
+contador += item.duracion;
+
 
 
 
@@ -229,24 +277,39 @@ contador -= 900;
 
 
 
-/*
-===============================
-CALCULAR POSICIÓN ACTUAL
-===============================
-*/
 
 
 const duracionTotal =
+
 ciclo.reduce(
+
 (total,item)=>
-total + item.duration,
+
+total + item.duracion,
+
 0
+
 );
 
 
 
+
+
+
+
+/*
+================================
+POSICIÓN ACTUAL
+================================
+*/
+
+
 let posicion =
-ahora % duracionTotal;
+
+tiempo %
+
+duracionTotal;
+
 
 
 
@@ -254,24 +317,26 @@ let actual=null;
 
 
 
+
 for(const item of ciclo){
 
 
-if(posicion < item.duration){
+if(posicion < item.duracion){
 
 
 actual=item;
 
 break;
 
+}
+
+
+posicion -= item.duracion;
+
 
 }
 
 
-posicion -= item.duration;
-
-
-}
 
 
 
@@ -285,11 +350,7 @@ actual=ciclo[0];
 
 
 
-/*
-===============================
-RESPUESTA
-===============================
-*/
+
 
 
 return new Response(
@@ -302,9 +363,9 @@ canal:CONFIG.nombre,
 
 titulo:actual.titulo,
 
-duracion:actual.duration,
+duracion:actual.duracion,
 
-tipo:actual.tipo || "m3u8",
+tipo:actual.tipo,
 
 url:actual.url,
 
@@ -322,22 +383,28 @@ null,
 
 {
 
+
 headers:{
 
 "Content-Type":
+
 "application/json",
 
+
 "Cache-Control":
+
 "no-cache"
 
 }
+
 
 }
 
 );
 
 
-}
 
+
+}
 
 };
