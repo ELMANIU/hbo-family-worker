@@ -73,24 +73,6 @@ duracion:1320,
 tipo:"m3u8",
 url:
 "https://hugh.cdn.rumble.cloud/video/fww1/9f/s8/2/K/v/S/2/KvS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=696461312-696474940"
-},
-
-
-
-{
-titulo:"TOM Y JERRY LA PELÍCULA",
-duracion:4800,
-tipo:"m3u8",
-url:"URL_TOM_JERRY"
-},
-
-
-
-{
-titulo:"LOS CROODS",
-duracion:5700,
-tipo:"m3u8",
-url:"URL_LOS_CROODS"
 }
 
 
