@@ -1,20 +1,9 @@
-// HBO FAMILY WORKER
-// Canal HLS lineal 24/7
-// Peliculas + Series + Comercial
-
-
-const WORKER_VERSION = "1.0.0";
-
-
-// =========================
-// CONTENIDO
-// =========================
+const WORKER_VERSION = "HBO-FAMILY-1.0.0";
 
 
 const CANALES = {
 
-hbo_family:{
-
+hbo_family: {
 
 nombre:"HBO FAMILY HD",
 
@@ -24,12 +13,6 @@ descripcion:
 
 epoch:
 Date.UTC(2026,0,1,0,0,0)/1000,
-
-
-intervaloComercialesMinutos:15,
-
-comercialEntreProgramas:true,
-
 
 
 programas:[
@@ -67,38 +50,6 @@ nombre:"LAS CHICAS SUPERPODEROSAS T1 E03",
 tipo:"serie",
 url:
 "https://hugh.cdn.rumble.cloud/video/fww1/9f/s8/2/K/v/S/2/KvS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=696461312-696474940"
-},
-
-
-
-{
-nombre:"TOM Y JERRY LA PELÍCULA",
-tipo:"pelicula",
-url:"PON_AQUI_LINK_TOM_JERRY"
-},
-
-
-
-{
-nombre:"LOS CROODS",
-tipo:"pelicula",
-url:"PON_AQUI_LINK_CROODS"
-}
-
-
-],
-
-
-
-comerciales:[
-
-
-{
-nombre:"PROMO HBO FAMILY",
-tipo:"comercial",
-url:
-"https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.caa.mp4",
-maxDurationSeconds:90
 }
 
 
@@ -106,165 +57,344 @@ maxDurationSeconds:90
 
 }
 
-
 };
 
 
 
 
-// =========================
-// CONFIG HLS
-// =========================
 
-
-const SEGMENTOS_ATRAS = 10;
+const SEGMENTOS_ATRAS = 15;
 const SEGMENTOS_ADELANTE = 12;
 
 
 
-let cacheSchedule=null;
+let CACHE = null;
 
 
 
-// =========================
-// CARGAR M3U8
-// =========================
+// =======================
+// CARGAR PLAYLIST HLS
+// =======================
 
 
-async function cargarPlaylist(url){
+async function fetchHLS(url){
 
 
-const r = await fetch(url);
+const r = await fetch(url,{
 
-const txt = await r.text();
-
-
-return txt.split("\n")
-
-.filter(x=>x && !x.startsWith("#EXT-X-ENDLIST"))
-
+headers:{
+"User-Agent":"HBO-FAMILY-WORKER"
 }
-
-
-async function construirHorario(){
-
-
-let lista=[];
-
-
-const canal=CANALES.hbo_family;
-
-
-
-for(const programa of canal.programas){
-
-
-lista.push({
-
-...programa,
-
-duracion:3600
 
 });
 
 
+if(!r.ok)
 
-// comercial cada bloque
+throw new Error(
+"Error cargando "+url
+);
 
-lista.push({
 
-...canal.comerciales[0],
+return await r.text();
 
-duracion:90
+
+}
+
+
+
+
+
+function resolverURL(base,uri){
+
+
+return new URL(uri,base).href;
+
+
+}
+
+
+
+
+
+async function cargarSegmentos(item){
+
+
+const texto =
+await fetchHLS(item.url);
+
+
+
+const base =
+new URL(item.url);
+
+
+
+let segmentos=[];
+
+let duracion=0;
+
+
+
+const lineas =
+texto.split("\n");
+
+
+
+let pendiente=0;
+
+
+
+for(let linea of lineas){
+
+
+linea=linea.trim();
+
+
+if(linea.startsWith("#EXTINF")){
+
+
+pendiente =
+parseFloat(
+linea.split(":")[1]
+);
+
+
+}
+
+
+
+if(
+linea &&
+!linea.startsWith("#")
+&& pendiente
+){
+
+
+segmentos.push({
+
+url:
+resolverURL(
+base,
+linea
+),
+
+duracion:
+pendiente
 
 });
 
 
+duracion+=pendiente;
+
+
+pendiente=0;
+
+
 }
 
-
-
-return lista;
-
-}
-
-
-
-
-function tiempoActual(){
-
-
-return Math.floor(Date.now()/1000);
 
 }
 
 
 
+return {
+
+item,
+
+segmentos,
+
+duracion
+
+};
 
 
-// =========================
-// GENERADOR PLAYLIST
-// =========================
+}
 
 
-async function generarM3U8(){
 
 
-const horario =
-await construirHorario();
 
+
+async function crearHorario(){
+
+
+let salida=[];
+
+
+for(const programa of CANALES.hbo_family.programas){
+
+
+const data =
+await cargarSegmentos(programa);
+
+
+
+salida.push(data);
+
+
+}
+
+
+
+return salida;
+
+
+}
+
+
+
+
+
+
+
+async function obtenerHorario(){
+
+
+if(!CACHE){
+
+CACHE =
+await crearHorario();
+
+}
+
+
+return CACHE;
+
+
+}
+
+
+
+
+
+
+
+// =======================
+// POSICION DEL CANAL
+// =======================
+
+
+function estadoActual(horario){
 
 
 let total=0;
 
 
-for(const x of horario)
+for(const p of horario)
 
-total+=x.duracion;
-
-
-
-let pos =
-tiempoActual() %
-total;
+total+=p.duracion;
 
 
 
-let actual;
+let tiempo =
+Math.floor(Date.now()/1000);
 
 
 
-for(const item of horario){
+let posicion =
+(tiempo -
+CANALES.hbo_family.epoch)
+% total;
 
 
-if(pos < item.duracion){
 
-actual=item;
+let acumulado=0;
 
-break;
+
+
+for(const bloque of horario){
+
+
+if(
+posicion <
+acumulado+bloque.duracion
+){
+
+
+return {
+
+bloque,
+
+offset:
+posicion-acumulado
+
+};
+
 
 }
 
 
-pos-=item.duracion;
+acumulado+=bloque.duracion;
+
+
+}
+
+
+return {
+
+bloque:
+horario[0],
+
+offset:0
+
+};
 
 
 }
 
 
 
-if(!actual)
-
-actual=horario[0];
 
 
 
-let segmentos =
-await cargarPlaylist(actual.url);
+
+
+function generarPlaylist(horario){
+
+
+const estado =
+estadoActual(horario);
 
 
 
-let salida=[
+const bloque =
+estado.bloque;
+
+
+
+let index=0;
+
+let tiempo=0;
+
+
+
+while(
+tiempo+bloque.segmentos[index].duracion
+<= estado.offset
+){
+
+
+tiempo+=
+bloque.segmentos[index].duracion;
+
+
+index++;
+
+
+if(index>=bloque.segmentos.length)
+
+index=0;
+
+
+}
+
+
+
+
+
+let lista=[
+
 
 "#EXTM3U",
 
@@ -274,30 +404,40 @@ let salida=[
 
 "#EXT-X-MEDIA-SEQUENCE:0"
 
+
 ];
 
 
 
-let contador=0;
+for(
+let i=0;
+i<SEGMENTOS_ADELANTE;
+i++
+){
+
+
+const seg =
+bloque.segmentos[index];
 
 
 
-for(const seg of segmentos){
+lista.push(
+
+"#EXTINF:"+
+seg.duracion+
+","
+
+);
 
 
-if(seg.startsWith("#"))
-
-salida.push(seg);
-
-else{
+lista.push(seg.url);
 
 
-salida.push(seg);
 
-contador++;
+index++;
 
 
-if(contador>SEGMENTOS_ADELANTE)
+if(index>=bloque.segmentos.length)
 
 break;
 
@@ -305,12 +445,8 @@ break;
 }
 
 
-}
 
-
-
-return salida.join("\n");
-
+return lista.join("\n");
 
 }
 
@@ -318,10 +454,9 @@ return salida.join("\n");
 
 
 
-// =========================
+// =======================
 // WORKER
-// =========================
-
+// =======================
 
 
 export default {
@@ -330,30 +465,41 @@ export default {
 async fetch(request){
 
 
-const url=new URL(request.url);
+const url =
+new URL(request.url);
 
 
 
-if(url.pathname==="/"){
+try{
+
+
+if(
+url.pathname==
+"/"
+){
 
 
 return new Response(
 
 JSON.stringify({
 
-servicio:"HBO FAMILY WORKER",
+service:
+"HBO FAMILY WORKER",
 
-version:WORKER_VERSION,
+version:
+WORKER_VERSION,
 
 live:
-url.origin+"/hbo_family/live.m3u8"
+url.origin+
+"/hbo_family/live.m3u8"
 
 },null,2),
 
 {
 
 headers:{
-"content-type":"application/json"
+"content-type":
+"application/json"
 }
 
 }
@@ -365,12 +511,21 @@ headers:{
 
 
 
-if(url.pathname==="/hbo_family/live.m3u8"){
+
+if(
+url.pathname==
+"/hbo_family/live.m3u8"
+){
+
+
+
+const horario =
+await obtenerHorario();
 
 
 
 const playlist =
-await generarM3U8();
+generarPlaylist(horario);
 
 
 
@@ -382,11 +537,13 @@ playlist,
 
 headers:{
 
+
 "content-type":
 "application/vnd.apple.mpegurl",
 
+
 "cache-control":
-"no-cache,no-store"
+"no-cache"
 
 }
 
@@ -395,19 +552,102 @@ headers:{
 );
 
 
+
 }
 
 
+
+
+if(
+url.pathname==
+"/hbo_family/status"
+){
+
+
+const horario =
+await obtenerHorario();
+
+
+const estado =
+estadoActual(horario);
 
 
 
 return new Response(
 
-"Ruta no encontrada",
+JSON.stringify({
 
-{status:404}
+canal:
+"HBO FAMILY HD",
+
+ahora:
+estado.bloque.item.nombre,
+
+offset:
+estado.offset,
+
+version:
+WORKER_VERSION
+
+},null,2),
+
+{
+
+headers:{
+"content-type":
+"application/json"
+}
+
+}
 
 );
+
+
+}
+
+
+
+
+return new Response(
+"No encontrado",
+{
+status:404
+}
+);
+
+
+}
+
+catch(e){
+
+
+return new Response(
+
+JSON.stringify({
+
+error:
+e.message,
+
+version:
+WORKER_VERSION
+
+},null,2),
+
+{
+
+status:500,
+
+headers:{
+"content-type":
+"application/json"
+}
+
+}
+
+);
+
+
+}
 
 
 }
