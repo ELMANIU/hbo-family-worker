@@ -1,6 +1,5 @@
 export default {
 
-
 async fetch(request, env) {
 
 
@@ -21,10 +20,16 @@ nombre:"HBO FAMILY HD",
 
 
 comercial:{
+
 titulo:"PROMO HBO FAMILY",
+
 duracion:90,
+
+tipo:"mp4",
+
 url:
-"https://servidor.com/promos/bumper_hbo_family.ts"
+"https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.caa.mp4?u=0&b=0"
+
 },
 
 
@@ -75,7 +80,6 @@ url:"URL_CROODS"
 
 ]
 
-
 },
 
 
@@ -84,44 +88,55 @@ url:"URL_CROODS"
 fenix_premiere:{
 
 
-nombre:"FENIX PREMIERE",
+nombre:"FENIX PREMIERE HD",
 
 
 comercial:{
-titulo:"PROMO FENIX",
+
+titulo:"PROMO FENIX PREMIERE",
+
 duracion:90,
+
+tipo:"mp4",
+
 url:"PROMO_FENIX"
+
 },
 
 
 programacion:[]
 
-
 },
+
 
 
 
 fenix_mix:{
 
 
-nombre:"FENIX MIX",
+nombre:"FENIX MIX HD",
 
 
 comercial:{
+
 titulo:"PROMO FENIX MIX",
+
 duracion:90,
+
+tipo:"mp4",
+
 url:"PROMO_MIX"
+
 },
 
 
 programacion:[]
 
-
 }
 
 
-
 };
+
 
 
 
@@ -134,13 +149,21 @@ if(!CONFIG){
 
 return new Response(
 "Canal no existe",
-{status:404}
+{
+status:404
+}
 );
 
 }
 
 
 
+
+/*
+===============================
+HORA MÉXICO
+===============================
+*/
 
 
 const mexico =
@@ -156,7 +179,7 @@ timeZone:"America/Mexico_City"
 
 
 
-const segundos =
+const ahora =
 Math.floor(
 mexico.getTime()/1000
 );
@@ -166,47 +189,36 @@ mexico.getTime()/1000
 
 
 /*
-=================================
-RELOJ LINEAL
-=================================
+===============================
+CREAR CICLO LINEAL
+COMERCIAL CADA 15 MINUTOS
+===============================
 */
-
-
-let contenido=[];
-
-
-let acumulado=0;
-
 
 
 let ciclo=[];
 
-
-/*
-Insertamos comercial cada 15 minutos
-*/
-
-
 let contador=0;
 
 
-for(const item of CONFIG.programacion){
+
+for(const contenido of CONFIG.programacion){
 
 
-ciclo.push(item);
+ciclo.push(contenido);
 
 
-contador += item.duration;
+contador += contenido.duration;
 
 
 
-if(contador>=900){
+while(contador >= 900){
 
 
 ciclo.push(CONFIG.comercial);
 
 
-contador=0;
+contador -= 900;
 
 
 }
@@ -215,19 +227,26 @@ contador=0;
 }
 
 
+
+
+/*
+===============================
+CALCULAR POSICIÓN ACTUAL
+===============================
+*/
 
 
 const duracionTotal =
 ciclo.reduce(
-(a,b)=>a+b.duration,
+(total,item)=>
+total + item.duration,
 0
 );
 
 
 
-
 let posicion =
-segundos % duracionTotal;
+ahora % duracionTotal;
 
 
 
@@ -249,7 +268,7 @@ break;
 }
 
 
-posicion-=item.duration;
+posicion -= item.duration;
 
 
 }
@@ -257,8 +276,27 @@ posicion-=item.duration;
 
 
 
+if(!actual){
+
+actual=ciclo[0];
+
+}
+
+
+
+
+/*
+===============================
+RESPUESTA
+===============================
+*/
+
+
 return new Response(
-JSON.stringify({
+
+JSON.stringify(
+
+{
 
 canal:CONFIG.nombre,
 
@@ -266,21 +304,37 @@ titulo:actual.titulo,
 
 duracion:actual.duration,
 
+tipo:actual.tipo || "m3u8",
+
 url:actual.url,
 
-offset:posicion
+offset:posicion,
 
+hora_mexico:mexico.toISOString()
 
-},null,2),
+},
+
+null,
+
+2
+
+),
+
 {
 
 headers:{
-"Content-Type":"application/json"
+
+"Content-Type":
+"application/json",
+
+"Cache-Control":
+"no-cache"
+
 }
 
 }
+
 );
-
 
 
 }
