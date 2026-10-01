@@ -1,0 +1,22 @@
+[
+  {
+    "titulo": "SHREK",
+    "duracion": 5400,
+    "url": "https://hugh.cdn.rumble.cloud/video/fwe2/44/s8/2/S/4/Q/2/S4Q2A.gaa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=1490550784-1490607269"
+  },
+  {
+    "titulo": "LAS CHICAS SUPERPODEROSAS - T1 E1",
+    "duracion": 1320,
+    "url": "https://hugh.cdn.rumble.cloud/video/fww1/8c/s8/2/a/2/R/2/a2R2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701743616-701757342"
+  },
+  {
+    "titulo": "LAS CHICAS SUPERPODEROSAS - T1 E2",
+    "duracion": 1320,
+    "url": "https://hugh.cdn.rumble.cloud/video/fww1/9a/s8/2/I/k/S/2/IkS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701710848-701724579"
+  },
+  {
+    "titulo": "LAS CHICAS SUPERPODEROSAS - T1 E3",
+    "duracion": 1320,
+    "url": "https://hugh.cdn.rumble.cloud/video/fww1/9f/s8/2/K/v/S/2/KvS2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=696461312-696474940"
+  }
+]
