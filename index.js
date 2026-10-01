@@ -1,18 +1,24 @@
-const WORKER_VERSION = "HBO-FAMILY-1.0.0";
+const WORKER_VERSION = "HBO-FAMILY-1.1.0";
 
 
 const CANALES = {
 
-hbo_family: {
+hbo_family:{
+
 
 nombre:"HBO FAMILY HD",
 
+
 descripcion:
-"Películas y series familiares 24/7",
+"Peliculas y series familiares 24/7",
 
 
 epoch:
 Date.UTC(2026,0,1,0,0,0)/1000,
+
+
+intervaloComercialesMinutos:15,
+
 
 
 programas:[
@@ -53,6 +59,27 @@ url:
 }
 
 
+],
+
+
+
+comerciales:[
+
+
+{
+
+nombre:"PROMO HBO FAMILY",
+
+tipo:"comercial",
+
+url:
+"https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.aaa.ts",
+
+maxDurationSeconds:90
+
+}
+
+
 ]
 
 }
@@ -63,65 +90,67 @@ url:
 
 
 
-const SEGMENTOS_ATRAS = 15;
 const SEGMENTOS_ADELANTE = 12;
 
-
-
-let CACHE = null;
+let CACHE=null;
 
 
 
 // =======================
-// CARGAR PLAYLIST HLS
+// CARGADOR HLS + TS
 // =======================
 
 
-async function fetchHLS(url){
+async function cargarContenido(item){
 
 
-const r = await fetch(url,{
 
-headers:{
-"User-Agent":"HBO-FAMILY-WORKER"
+// Si es TS directo
+
+if(item.url.endsWith(".ts")){
+
+
+return {
+
+item,
+
+segmentos:[
+
+{
+
+url:item.url,
+
+duracion:item.maxDurationSeconds || 90
+
 }
 
-});
+],
+
+duracion:item.maxDurationSeconds || 90
+
+};
+
+
+}
+
+
+
+
+const r =
+await fetch(item.url);
+
 
 
 if(!r.ok)
 
 throw new Error(
-"Error cargando "+url
+"Error cargando "+item.nombre
 );
 
 
-return await r.text();
-
-
-}
-
-
-
-
-
-function resolverURL(base,uri){
-
-
-return new URL(uri,base).href;
-
-
-}
-
-
-
-
-
-async function cargarSegmentos(item){
-
 
 const texto =
-await fetchHLS(item.url);
+await r.text();
 
 
 
@@ -134,27 +163,24 @@ let segmentos=[];
 
 let duracion=0;
 
-
-
-const lineas =
-texto.split("\n");
-
-
-
 let pendiente=0;
 
 
 
-for(let linea of lineas){
+for(
+let linea of texto.split("\n")
+){
 
 
 linea=linea.trim();
 
 
-if(linea.startsWith("#EXTINF")){
 
+if(
+linea.startsWith("#EXTINF")
+){
 
-pendiente =
+pendiente=
 parseFloat(
 linea.split(":")[1]
 );
@@ -174,10 +200,10 @@ linea &&
 segmentos.push({
 
 url:
-resolverURL(
-base,
-linea
-),
+new URL(
+linea,
+base
+).href,
 
 duracion:
 pendiente
@@ -219,18 +245,69 @@ duracion
 async function crearHorario(){
 
 
+let lista=[];
+
+
+const canal =
+CANALES.hbo_family;
+
+
+
+for(
+const programa of canal.programas
+){
+
+
+lista.push(
+await cargarContenido(programa)
+);
+
+
+
+}
+
+
+// insertar comerciales cada 15 minutos
+
 let salida=[];
 
 
-for(const programa of CANALES.hbo_family.programas){
-
-
-const data =
-await cargarSegmentos(programa);
+let tiempo=0;
 
 
 
-salida.push(data);
+for(
+const bloque of lista
+){
+
+
+salida.push(bloque);
+
+
+
+tiempo+=bloque.duracion;
+
+
+
+if(
+tiempo >= 900
+){
+
+
+salida.push(
+
+await cargarContenido(
+canal.comerciales[0]
+)
+
+);
+
+
+tiempo=0;
+
+
+}
+
 
 
 }
@@ -248,15 +325,14 @@ return salida;
 
 
 
-async function obtenerHorario(){
+async function horario(){
 
 
-if(!CACHE){
+if(!CACHE)
 
 CACHE =
 await crearHorario();
 
-}
 
 
 return CACHE;
@@ -270,31 +346,33 @@ return CACHE;
 
 
 
-// =======================
-// POSICION DEL CANAL
-// =======================
+function obtenerActual(lista){
 
-
-function estadoActual(horario){
 
 
 let total=0;
 
 
-for(const p of horario)
+for(
+const x of lista
+)
 
-total+=p.duracion;
+total+=x.duracion;
 
 
 
-let tiempo =
-Math.floor(Date.now()/1000);
+let reloj =
+Math.floor(
+Date.now()/1000
+);
 
 
 
 let posicion =
-(tiempo -
-CANALES.hbo_family.epoch)
+(
+reloj -
+CANALES.hbo_family.epoch
+)
 % total;
 
 
@@ -303,7 +381,10 @@ let acumulado=0;
 
 
 
-for(const bloque of horario){
+for(
+const bloque of lista
+){
+
 
 
 if(
@@ -325,16 +406,18 @@ posicion-acumulado
 }
 
 
+
 acumulado+=bloque.duracion;
 
 
 }
 
 
+
 return {
 
 bloque:
-horario[0],
+lista[0],
 
 offset:0
 
@@ -349,52 +432,54 @@ offset:0
 
 
 
-
-function generarPlaylist(horario){
-
-
-const estado =
-estadoActual(horario);
+function generarM3U8(lista){
 
 
 
-const bloque =
-estado.bloque;
+const actual =
+obtenerActual(lista);
 
 
 
-let index=0;
+let segs =
+actual.bloque.segmentos;
+
+
+
+let inicio=0;
+
 
 let tiempo=0;
 
 
 
 while(
-tiempo+bloque.segmentos[index].duracion
-<= estado.offset
+tiempo+
+segs[inicio].duracion
+<
+actual.offset
 ){
 
 
 tiempo+=
-bloque.segmentos[index].duracion;
+segs[inicio].duracion;
 
 
-index++;
+inicio++;
 
 
-if(index>=bloque.segmentos.length)
+if(
+inicio>=segs.length
+)
 
-index=0;
+inicio=0;
 
 
 }
 
 
 
-
-
-let lista=[
-
+let salida=[
 
 "#EXTM3U",
 
@@ -404,8 +489,9 @@ let lista=[
 
 "#EXT-X-MEDIA-SEQUENCE:0"
 
-
 ];
+
+
 
 
 
@@ -416,28 +502,32 @@ i++
 ){
 
 
+
 const seg =
-bloque.segmentos[index];
+segs[inicio];
 
 
 
-lista.push(
-
+salida.push(
 "#EXTINF:"+
 seg.duracion+
 ","
-
 );
 
 
-lista.push(seg.url);
+salida.push(
+seg.url
+);
 
 
 
-index++;
+inicio++;
 
 
-if(index>=bloque.segmentos.length)
+
+if(
+inicio>=segs.length
+)
 
 break;
 
@@ -446,7 +536,7 @@ break;
 
 
 
-return lista.join("\n");
+return salida.join("\n");
 
 }
 
@@ -454,9 +544,6 @@ return lista.join("\n");
 
 
 
-// =======================
-// WORKER
-// =======================
 
 
 export default {
@@ -483,8 +570,7 @@ return new Response(
 
 JSON.stringify({
 
-service:
-"HBO FAMILY WORKER",
+service:"HBO FAMILY HD",
 
 version:
 WORKER_VERSION,
@@ -506,8 +592,8 @@ headers:{
 
 );
 
-}
 
+}
 
 
 
@@ -518,29 +604,21 @@ url.pathname==
 ){
 
 
-
-const horario =
-await obtenerHorario();
-
-
-
-const playlist =
-generarPlaylist(horario);
+const lista =
+await horario();
 
 
 
 return new Response(
 
-playlist,
+generarM3U8(lista),
 
 {
 
 headers:{
 
-
 "content-type":
 "application/vnd.apple.mpegurl",
-
 
 "cache-control":
 "no-cache"
@@ -550,7 +628,6 @@ headers:{
 }
 
 );
-
 
 
 }
@@ -564,12 +641,12 @@ url.pathname==
 ){
 
 
-const horario =
-await obtenerHorario();
+const lista =
+await horario();
 
 
-const estado =
-estadoActual(horario);
+const actual =
+obtenerActual(lista);
 
 
 
@@ -577,17 +654,13 @@ return new Response(
 
 JSON.stringify({
 
-canal:
-"HBO FAMILY HD",
+canal:"HBO FAMILY HD",
 
 ahora:
-estado.bloque.item.nombre,
+actual.bloque.item.nombre,
 
 offset:
-estado.offset,
-
-version:
-WORKER_VERSION
+actual.offset
 
 },null,2),
 
@@ -607,13 +680,10 @@ headers:{
 
 
 
-
 return new Response(
-"No encontrado",
-{
-status:404
-}
+"OK"
 );
+
 
 
 }
@@ -625,11 +695,7 @@ return new Response(
 
 JSON.stringify({
 
-error:
-e.message,
-
-version:
-WORKER_VERSION
+error:e.message
 
 },null,2),
 
@@ -648,6 +714,7 @@ headers:{
 
 
 }
+
 
 
 }
