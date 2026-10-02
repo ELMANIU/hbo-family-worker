@@ -44,6 +44,9 @@ const CHICAS_SUPERPODEROSAS_S01E02 =
 const CHICAS_SUPERPODEROSAS_S01E03 =
   "https://hugh.cdn.rumble.cloud/video/fww1/88/s8/2/0/f/-/2/0f-2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=695165952-695179564";
 
+const TOM_Y_JERRY_LA_PELICULA =
+  "https://hugh.cdn.rumble.cloud/video/fwe2/f7/s8/2/I/x/-/2/Ix-2A.gaa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=1616154624-1616216025";
+
 const COMMERCIAL_TS =
   "https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.aaa.ts";
 
