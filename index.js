@@ -5,6 +5,7 @@
 // Genera un canal HLS lineal 24/7 con:
 //   - Shrek
 //   - Shrek 2
+//   - Las Chicas Superpoderosas S01E01-S01E03
 //   - comercial directo .ts cada 15 min de contenido
 //   - /live.m3u8
 //   - /status (now/next + datos para overlays)
@@ -17,7 +18,7 @@
 // continuidad A/V entre la pelicula y el comercial.
 // ============================================================
 
-const WORKER_VERSION = "2.1.0-hbofamily";
+const WORKER_VERSION = "2.3.0-hbofamily";
 
 const CHANNEL_KEY = "hbofamily";
 const CHANNEL_ID = "hbo-family-hd";
@@ -33,6 +34,15 @@ const SHREK_1 =
 
 const SHREK_2 =
   "https://hugh.cdn.rumble.cloud/video/fwe2/50/s8/2/q/6/9/2/q692A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=2841432064-2841488530";
+
+const CHICAS_SUPERPODEROSAS_S01E01 =
+  "https://hugh.cdn.rumble.cloud/video/fww1/3d/s8/2/G/b/-/2/Gb-2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=701018624-701032345";
+
+const CHICAS_SUPERPODEROSAS_S01E02 =
+  "https://hugh.cdn.rumble.cloud/video/fwe2/e3/s8/2/A/d/-/2/Ad-2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=700087296-700101020";
+
+const CHICAS_SUPERPODEROSAS_S01E03 =
+  "https://hugh.cdn.rumble.cloud/video/fww1/88/s8/2/0/f/-/2/0f-2A.haa.tar?r_file=chunklist.m3u8&r_type=application%2Fvnd.apple.mpegurl&r_range=695165952-695179564";
 
 const COMMERCIAL_TS =
   "https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.aaa.ts";
@@ -52,6 +62,8 @@ const CHANNEL = {
 
   intervaloComercialesMinutos: 15,
   comercialEntreProgramas: false,
+  protegerInicioProgramaSegundos: 60,
+  protegerFinalProgramaSegundos: 60,
 
   logo: CHANNEL_LOGO,
   channelBugUrl: CHANNEL_BUG,
@@ -73,6 +85,27 @@ const CHANNEL = {
       descripcion: "Shrek 2.",
       tipo: "pelicula",
       url: SHREK_2,
+    },
+    {
+      id: "chicas-superpoderosas-s01e01",
+      nombre: "Las Chicas Superpoderosas — S01E01",
+      descripcion: "Temporada 1 · Episodio 1",
+      tipo: "serie",
+      url: CHICAS_SUPERPODEROSAS_S01E01,
+    },
+    {
+      id: "chicas-superpoderosas-s01e02",
+      nombre: "Las Chicas Superpoderosas — S01E02",
+      descripcion: "Temporada 1 · Episodio 2",
+      tipo: "serie",
+      url: CHICAS_SUPERPODEROSAS_S01E02,
+    },
+    {
+      id: "chicas-superpoderosas-s01e03",
+      nombre: "Las Chicas Superpoderosas — S01E03",
+      descripcion: "Temporada 1 · Episodio 3",
+      tipo: "serie",
+      url: CHICAS_SUPERPODEROSAS_S01E03,
     },
   ],
 
@@ -104,7 +137,12 @@ const SOURCE_CACHE_TTL_SECONDS = 60 * 60;
 const SEGMENTOS_ATRAS = 15;
 const SEGMENTOS_ADELANTE = 12;
 
-// Evita meter un corte si ya queda muy poco de la pelicula.
+// Ventanas protegidas del contenido: nunca se inserta publicidad durante
+// el primer minuto ni durante el ultimo minuto del programa.
+const PROTECTED_PROGRAM_START_SECONDS = 60;
+const PROTECTED_PROGRAM_END_SECONDS = 60;
+
+// Conserva ademas un margen de seguridad de 90 s al final.
 const MINIMO_DESPUES_DE_CORTE_SECONDS = 90;
 
 const GUIDE_PAST_DAYS = 1;
@@ -631,15 +669,33 @@ async function buildSchedule() {
 
     let partStart = 0;
     let sinceCommercial = 0;
+    let mediaElapsed = 0;
 
     for (let index = 0; index < sourceSegments.length; index += 1) {
-      sinceCommercial += sourceSegments[index].duration;
+      const segmentDuration = sourceSegments[index].duration;
+      sinceCommercial += segmentDuration;
+      mediaElapsed += segmentDuration;
 
       if (!intervalSeconds || !commercials.length || sinceCommercial < intervalSeconds) {
         continue;
       }
 
       const remaining = sumDurations(sourceSegments, index + 1, sourceSegments.length);
+
+      // Nunca interrumpir los 60 s de ESTAS VIENDO al inicio.
+      const protectedStart = Math.max(
+        PROTECTED_PROGRAM_START_SECONDS,
+        Number(CHANNEL.protegerInicioProgramaSegundos || 0),
+      );
+      if (mediaElapsed <= protectedStart) continue;
+
+      // Nunca meter publicidad en los 60 s reservados para A CONTINUACION.
+      // El margen de 90 s existente sigue siendo mas conservador.
+      const protectedEnd = Math.max(
+        PROTECTED_PROGRAM_END_SECONDS,
+        Number(CHANNEL.protegerFinalProgramaSegundos || 0),
+      );
+      if (remaining <= protectedEnd) continue;
       if (remaining < MINIMO_DESPUES_DE_CORTE_SECONDS) continue;
 
       appendBlock(
@@ -1031,6 +1087,12 @@ function scheduleSummary(schedule, nowSeconds) {
     elapsedSeconds: content.elapsedSeconds,
     remainingSeconds: content.remainingSeconds,
     overlay: content.overlay,
+    commercialPolicy: {
+      everyMinutes: CHANNEL.intervaloComercialesMinutos,
+      durationSeconds: 90,
+      protectStartSeconds: CHANNEL.protegerInicioProgramaSegundos,
+      protectEndSeconds: CHANNEL.protegerFinalProgramaSegundos,
+    },
 
     cycle: state.cycle,
     positionInCycle: Number(state.position.toFixed(3)),
@@ -1140,6 +1202,13 @@ function buildChannelJson(baseUrl, schedule, nowSeconds) {
     nextContent: status.nextContent,
     progressPercent: status.progressPercent,
     overlay: status.overlay,
+
+    commercialPolicy: {
+      everyMinutes: CHANNEL.intervaloComercialesMinutos,
+      durationSeconds: 90,
+      protectStartSeconds: CHANNEL.protegerInicioProgramaSegundos,
+      protectEndSeconds: CHANNEL.protegerFinalProgramaSegundos,
+    },
 
     // Alias opcional para la UI que maneje un target now/next.
     target: {
