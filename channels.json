@@ -22,7 +22,7 @@
       "channelBugScale": 1.55,
 
       "channelBugAnimation": true,
-      "channelBugAnimationIntervalSeconds": 30,
+      "channelBugAnimationIntervalSeconds": 420,
 
       "videoAspectRatio": "16:9",
       "programOverlay": true,
@@ -152,7 +152,7 @@
       "channelBugScale": 1.55,
 
       "channelBugAnimation": true,
-      "channelBugAnimationIntervalSeconds": 30,
+      "channelBugAnimationIntervalSeconds": 420,
 
       "videoAspectRatio": "16:9",
       "programOverlay": true,
