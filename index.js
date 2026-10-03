@@ -58,13 +58,15 @@ const LOS_CROODS_MP4 =
 // Duraciones manuales en segundos.
 // IMPORTANTE: la linea de tiempo y el seek dependen de estos valores.
 // Si el archivo directo dura distinto, cambia SOLO la constante correspondiente.
-const SHREK_1_DURATION_SECONDS = 5400; // 1:30:00 - ajustar al archivo exacto
-const SHREK_2_DURATION_SECONDS = 5580; // 1:33:00 - ajustar al archivo exacto
-const CHICAS_S01E01_DURATION_SECONDS = 1320; // 22:00 - ajustar al archivo exacto
-const CHICAS_S01E02_DURATION_SECONDS = 1320; // 22:00 - ajustar al archivo exacto
-const CHICAS_S01E03_DURATION_SECONDS = 1320; // 22:00 - ajustar al archivo exacto
-const TOM_Y_JERRY_DURATION_SECONDS = 5040; // 1:24:00 - ajustar al archivo exacto
-const LOS_CROODS_DURATION_SECONDS = 5880; // 1:38:00 - ajustar al archivo exacto
+const SHREK_1_DURATION_SECONDS = 5466;        // 1:31:06
+const SHREK_2_DURATION_SECONDS = 5558;        // 1:32:38
+
+const CHICAS_S01E01_DURATION_SECONDS = 1364;  // 22:44
+const CHICAS_S01E02_DURATION_SECONDS = 1364;  // 22:44
+const CHICAS_S01E03_DURATION_SECONDS = 1355;  // 22:35
+
+const LOS_CROODS_DURATION_SECONDS = 5917;     // 1:38:37
+const TOM_Y_JERRY_DURATION_SECONDS = 6065;    // 1:41:05
 
 const COMMERCIAL_TS =
   "https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.aaa.ts";
