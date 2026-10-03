@@ -1,14 +1,14 @@
 // ============================================================
-// FÉNIX TV — MULTICHANNEL LINEAR DIRECT WORKER v3.0
+// FÉNIX TV — MULTICHANNEL LINEAR DIRECT WORKER v3.1
 // MP4 / MKV / HLS + REMOTE channels.json + EPG + NOW/NEXT
 // ============================================================
 
-const WORKER_VERSION = "3.0.0-multichannel-remote-config";
+const WORKER_VERSION = "3.1.0-multichannel-github-config";
 
 // Puedes cambiarla con la variable CHANNELS_CONFIG_URL del Worker.
 // Si este archivo no existe todavía, el Worker usa la configuración embebida.
 const DEFAULT_REMOTE_CONFIG_URL =
-  "https://pub-31c3df763d1f4f2bbd2602595581aa82.r2.dev/fenix-config/channels.json";
+  "https://raw.githubusercontent.com/ELMANIU/hbo-family-worker/refs/heads/main/channels.json";
 
 // Catálogo actual de Fénix TV. /catalog.json lo conserva y solamente reemplaza
 // los canales administrados por channels.json. Se puede cambiar con
