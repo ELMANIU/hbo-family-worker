@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "configVersion": "2026-10-03.1",
+  "updatedAt": "2026-10-03T21:12:00Z",
+  "channels": {
+    "hbofamily": {
+      "enabled": true,
+      "id": "hbo-family-hd",
+      "name": "HBO FAMILY HD",
+      "description": "Películas y series familiares en señal lineal 24/7.",
+      "categoryKey": "peliculas",
+      "categoryTitle": "Películas",
+      "specialKey": "hbofamily",
+      "playerStyle": "hbofamily",
+      "epoch": 1790899200,
+      "logo": "https://dl.dropbox.com/scl/fi/lc6b4gg1twqumr4vrakqj/file_00000000ea5081f5ae4dbb5801f12815.png?rlkey=m6w76492cyq0z12lx91mgo31b&st=kq7ilsda&dl=0",
+      "channelBugUrl": "https://dl.dropbox.com/scl/fi/wfvxs2ld2nkrw2p5mvxr4/file_00000000875881f5b8eb4726d70d23c3.png?rlkey=hdpi75re6qn1ehrhq446ps2zr&st=r6ak8axz&dl=0",
+      "channelBugOpacity": 0.78,
+      "channelBugScale": 1.55,
+      "videoAspectRatio": "16:9",
+      "programOverlay": true,
+      "queueHorizonSeconds": 172800,
+      "commercial": {
+        "enabled": true,
+        "url": "https://pub-31c3df763d1f4f2bbd2602595581aa82.r2.dev/FenixTV_COMERCIAL_REAL_1m30_ROKU_1080p_OPTIMIZADO_TEXTO_CORREGIDO.mp4",
+        "streamFormat": "mp4",
+        "durationSeconds": 90,
+        "intervalSeconds": 900,
+        "protectStartSeconds": 60,
+        "protectEndSeconds": 60,
+        "betweenPrograms": false,
+        "legacyTsUrl": "https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.aaa.ts"
+      },
+      "programs": [
+        {
+          "id": "shrek-1",
+          "title": "Shrek",
+          "description": "Película familiar en español latino.",
+          "type": "pelicula",
+          "url": "https://hugh.cdn.rumble.cloud/video/fwe2/40/s8/2/e/s/0/2/es02A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 5466,
+          "aspectRatio": "16:9",
+          "enabled": true
+        },
+        {
+          "id": "shrek-2",
+          "title": "Shrek 2",
+          "description": "Película familiar en español latino.",
+          "type": "pelicula",
+          "url": "https://hugh.cdn.rumble.cloud/video/fwe2/50/s8/2/q/6/9/2/q692A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 5558,
+          "aspectRatio": "16:9",
+          "enabled": true
+        },
+        {
+          "id": "kung-fu-panda-3",
+          "title": "Kung Fu Panda 3",
+          "description": "Película familiar de DreamWorks (2016) en español latino.",
+          "type": "pelicula",
+          "url": "https://hugh.cdn.rumble.cloud/video/fww1/be/s8/2/I/x/q/3/Ixq3A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 5694,
+          "aspectRatio": "16:9",
+          "enabled": true
+        },
+        {
+          "id": "chicas-superpoderosas-s01e01",
+          "title": "Las Chicas Superpoderosas — Simono dice... / Un toque femenino",
+          "description": "Temporada 1 · Episodio 1 · Español latino",
+          "type": "serie",
+          "url": "https://hugh.cdn.rumble.cloud/video/fww1/3d/s8/2/G/b/-/2/Gb-2A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 1364,
+          "aspectRatio": "4:3",
+          "enabled": true
+        },
+        {
+          "id": "chicas-superpoderosas-s01e02",
+          "title": "Las Chicas Superpoderosas — El insecto que llevamos dentro / Doble personalidad",
+          "description": "Temporada 1 · Episodio 2 · Español latino",
+          "type": "serie",
+          "url": "https://hugh.cdn.rumble.cloud/video/fwe2/e3/s8/2/A/d/-/2/Ad-2A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 1364,
+          "aspectRatio": "4:3",
+          "enabled": true
+        },
+        {
+          "id": "chicas-superpoderosas-s01e03",
+          "title": "Las Chicas Superpoderosas — El pulpo del mal / Problemas",
+          "description": "Temporada 1 · Episodio 3 · Español latino",
+          "type": "serie",
+          "url": "https://hugh.cdn.rumble.cloud/video/fww1/88/s8/2/0/f/-/2/0f-2A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 1355,
+          "aspectRatio": "4:3",
+          "enabled": true
+        },
+        {
+          "id": "tom-y-jerry-la-pelicula",
+          "title": "Tom y Jerry: La película",
+          "description": "Película familiar en español latino.",
+          "type": "pelicula",
+          "url": "https://hugh.cdn.rumble.cloud/video/fwe2/f7/s8/2/I/x/-/2/Ix-2A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 6065,
+          "aspectRatio": "16:9",
+          "enabled": true
+        },
+        {
+          "id": "los-croods",
+          "title": "Los Croods",
+          "description": "Película familiar en español latino.",
+          "type": "pelicula",
+          "url": "https://hugh.cdn.rumble.cloud/video/fwe2/25/s8/2/I/s/p/3/Isp3A.aaa.mkv",
+          "streamFormat": "mkv",
+          "durationSeconds": 5917,
+          "aspectRatio": "16:9",
+          "enabled": true
+        }
+      ]
+    }
+  }
+}
