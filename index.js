@@ -19,7 +19,7 @@
 // como un VOD HLS de 90 s y el Worker conserve la sincronizacion 24/7.
 // ============================================================
 
-const WORKER_VERSION = "2.6.0-linear-direct";
+const WORKER_VERSION = "2.7.0-native-queue";
 
 const CHANNEL_ID = "hbo-family-hd";
 const CHANNEL_KEY = "hbofamily";
@@ -58,20 +58,25 @@ const LOS_CROODS_MP4 =
 // Duraciones manuales en segundos.
 // IMPORTANTE: la linea de tiempo y el seek dependen de estos valores.
 // Si el archivo directo dura distinto, cambia SOLO la constante correspondiente.
-const SHREK_1_DURATION_SECONDS = 5466;        // 1:31:06
-const SHREK_2_DURATION_SECONDS = 5558;        // 1:32:38
+const SHREK_1_DURATION_SECONDS = 5400; // 1:30:00 - ajustar al archivo exacto
+const SHREK_2_DURATION_SECONDS = 5580; // 1:33:00 - ajustar al archivo exacto
+const CHICAS_S01E01_DURATION_SECONDS = 1320; // 22:00 - ajustar al archivo exacto
+const CHICAS_S01E02_DURATION_SECONDS = 1320; // 22:00 - ajustar al archivo exacto
+const CHICAS_S01E03_DURATION_SECONDS = 1320; // 22:00 - ajustar al archivo exacto
+const TOM_Y_JERRY_DURATION_SECONDS = 5040; // 1:24:00 - ajustar al archivo exacto
+const LOS_CROODS_DURATION_SECONDS = 5880; // 1:38:00 - ajustar al archivo exacto
 
-const CHICAS_S01E01_DURATION_SECONDS = 1364;  // 22:44
-const CHICAS_S01E02_DURATION_SECONDS = 1364;  // 22:44
-const CHICAS_S01E03_DURATION_SECONDS = 1355;  // 22:35
+// BUILD 2.7: comercial MP4 directo para evitar cambiar de MP4/MKV a HLS
+// en cada corte. Mantiene el decoder en un camino de archivo directo.
+const COMMERCIAL_MP4 =
+  "https://pub-31c3df763d1f4f2bbd2602595581aa82.r2.dev/FenixTV_COMERCIAL_REAL_1m30_ROKU_1080p_OPTIMIZADO_TEXTO_CORREGIDO.mp4";
 
-const LOS_CROODS_DURATION_SECONDS = 5917;     // 1:38:37
-const TOM_Y_JERRY_DURATION_SECONDS = 6065;    // 1:41:05
-
+// Fallback legacy; /commercial.m3u8 se conserva para apps anteriores.
 const COMMERCIAL_TS =
   "https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.aaa.ts";
 
 const COMMERCIAL_DURATION_SECONDS = 90;
+const PLAYBACK_QUEUE_HORIZON_SECONDS = 48 * 60 * 60;
 const COMMERCIAL_INTERVAL_SECONDS = 15 * 60;
 const PROTECT_START_SECONDS = 60;
 const PROTECT_END_SECONDS = 60;
@@ -370,8 +375,8 @@ function appendCommercialBlock(timeline, programIndex, commercialNumber) {
     title: "Corte comercial",
     description: "Corte comercial Fenix TV.",
     type: "comercial",
-    url: "__COMMERCIAL_PLAYLIST__",
-    streamFormat: "hls",
+    url: COMMERCIAL_MP4,
+    streamFormat: "mp4",
     aspectRatio: "16:9",
     sourceStart: 0,
     sourceEnd: COMMERCIAL_DURATION_SECONDS,
@@ -534,7 +539,7 @@ function buildStatus(timeline, state, nowSeconds, baseUrl) {
       blockId: state.cycle + ":" + block.id,
       kind: block.kind,
       isCommercial: block.isCommercial,
-      url: block.isCommercial ? baseUrl + "/commercial.m3u8" : block.url,
+      url: block.url,
       streamFormat: block.streamFormat,
       aspectRatio: block.aspectRatio || "16:9",
       seekSeconds: Number(
@@ -567,6 +572,66 @@ function buildStatus(timeline, state, nowSeconds, baseUrl) {
       isCommercial: block.isCommercial,
     },
   };
+}
+
+
+function buildPlaybackQueue(timeline, state, baseUrl) {
+  const queue = [];
+  if (!timeline.blocks.length) return queue;
+
+  let blockIndex = state.blockIndex;
+  let cycle = state.cycle;
+  let queuedSeconds = 0;
+  let first = true;
+  const maxItems = 900;
+
+  while (queuedSeconds < PLAYBACK_QUEUE_HORIZON_SECONDS && queue.length < maxItems) {
+    const block = timeline.blocks[blockIndex];
+    const program = timeline.programs[block.programIndex];
+
+    let positionInBlock = 0;
+    if (first) {
+      positionInBlock = Math.max(0, Math.min(block.duration, state.position - block.start));
+    }
+
+    const playStartSeconds = block.isCommercial
+      ? positionInBlock
+      : block.sourceStart + positionInBlock;
+
+    const remaining = Math.max(0.001, block.duration - positionInBlock);
+    const nextProgram = timeline.programs[nextProgramIndex(timeline, block.programIndex)];
+
+    queue.push({
+      blockId: cycle + ":" + block.id,
+      role: block.isCommercial ? "ad" : "movie",
+      kind: block.kind,
+      isCommercial: block.isCommercial,
+      title: block.isCommercial ? "Corte comercial" : program.title,
+      description: block.isCommercial ? "Corte comercial Fenix TV." : program.description,
+      contentTitle: program.title,
+      nextTitle: nextProgram ? nextProgram.title : "",
+      url: block.url,
+      streamFormat: block.streamFormat,
+      aspectRatio: block.aspectRatio || program.aspectRatio || "16:9",
+      clipStartSeconds: Number(block.sourceStart.toFixed(3)),
+      clipEndSeconds: Number(block.sourceEnd.toFixed(3)),
+      playStartSeconds: Number(playStartSeconds.toFixed(3)),
+      durationSeconds: Number(remaining.toFixed(3)),
+      blockDurationSeconds: Number(block.duration.toFixed(3)),
+      contentDurationSeconds: Number(program.durationSeconds.toFixed(3)),
+      cycle,
+    });
+
+    queuedSeconds += remaining;
+    first = false;
+    blockIndex += 1;
+    if (blockIndex >= timeline.blocks.length) {
+      blockIndex = 0;
+      cycle += 1;
+    }
+  }
+
+  return queue;
 }
 
 function guideEvents(timeline, fromSeconds, untilSeconds) {
@@ -623,6 +688,7 @@ function buildChannelJson(baseUrl) {
     programOverlay: true,
 
     statusUrl: baseUrl + "/status",
+    queueStatusUrl: baseUrl + "/status?queue=1",
     guideUrl: baseUrl + "/guide.json",
     channelJsonUrl: baseUrl + "/channel.json",
     healthUrl: baseUrl + "/health",
@@ -669,6 +735,12 @@ export default {
       const nowSeconds = Date.now() / 1000;
       const state = livePosition(timeline, nowSeconds);
       const status = buildStatus(timeline, state, nowSeconds, baseUrl);
+      const includeQueue = url.searchParams.get("queue") === "1";
+      if (includeQueue) {
+        status.queue = buildPlaybackQueue(timeline, state, baseUrl);
+        status.queueHorizonSeconds = PLAYBACK_QUEUE_HORIZON_SECONDS;
+        status.queueItemCount = status.queue.length;
+      }
 
       if (path === "/") {
         return jsonResponse(
@@ -754,6 +826,8 @@ export default {
             cycleDurationSeconds: Number(timeline.total.toFixed(3)),
             commercialEveryMinutes: COMMERCIAL_INTERVAL_SECONDS / 60,
             commercialDurationSeconds: COMMERCIAL_DURATION_SECONDS,
+            commercialPlaybackFormat: "mp4",
+            playbackQueueHorizonHours: PLAYBACK_QUEUE_HORIZON_SECONDS / 3600,
             protectedStartSeconds: PROTECT_START_SECONDS,
             protectedEndSeconds: PROTECT_END_SECONDS,
             programs: timeline.programs.map((program, index) => ({
