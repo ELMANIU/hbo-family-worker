@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "configVersion": "2026-10-03.1",
-  "updatedAt": "2026-10-03T21:12:00Z",
+  "configVersion": "2026-10-03.3",
+  "updatedAt": "2026-10-03T22:54:03Z",
   "channels": {
     "hbofamily": {
       "enabled": true,
@@ -118,6 +118,68 @@
           "streamFormat": "mkv",
           "durationSeconds": 5917,
           "aspectRatio": "16:9",
+          "enabled": true
+        }
+      ]
+    },
+    "bitme": {
+      "enabled": true,
+      "id": "bitme-hd",
+      "name": "BITME HD",
+      "description": "Canal de anime y entretenimiento en señal lineal 24/7.",
+      "categoryKey": "anime",
+      "categoryTitle": "Anime",
+      "specialKey": "bitme",
+      "playerStyle": "bitme",
+      "playerTitleMode": "channelOnly",
+      "epoch": 1791066527,
+      "logo": "https://dl.dropbox.com/scl/fi/nttyzvxgt6duacybij5yt/file_00000000786881f5976ee270c3ed382e.png?rlkey=m3m62y4bssvufqvtbwlmzv3x0&st=1lr4x5us&dl=1",
+      "channelBugUrl": "https://dl.dropbox.com/scl/fi/nttyzvxgt6duacybij5yt/file_00000000786881f5976ee270c3ed382e.png?rlkey=m3m62y4bssvufqvtbwlmzv3x0&st=1lr4x5us&dl=1",
+      "channelBugOpacity": 0.78,
+      "channelBugScale": 1.55,
+      "videoAspectRatio": "16:9",
+      "programOverlay": true,
+      "queueHorizonSeconds": 172800,
+      "commercial": {
+        "enabled": true,
+        "url": "https://pub-31c3df763d1f4f2bbd2602595581aa82.r2.dev/FenixTV_COMERCIAL_REAL_1m30_ROKU_1080p_OPTIMIZADO_TEXTO_CORREGIDO.mp4",
+        "streamFormat": "mp4",
+        "durationSeconds": 90,
+        "intervalSeconds": 900,
+        "protectStartSeconds": 60,
+        "protectEndSeconds": 60,
+        "betweenPrograms": false,
+        "legacyTsUrl": "https://hugh.cdn.rumble.cloud/video/fwe2/a0/s8/2/Y/B/T/2/YBT2A.aaa.ts"
+      },
+      "programs": [
+        {
+          "id": "dragon-ball-s01e01",
+          "title": "Dragon Ball S01 E01",
+          "description": "Temporada 1 · Episodio 1",
+          "type": "serie",
+          "url": "https://hugh.cdn.rumble.cloud/video/fww1/87/s8/2/a/r/p/2/arp2A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 1479,
+          "enabled": true
+        },
+        {
+          "id": "dragon-ball-s01e02",
+          "title": "Dragon Ball S01 E02",
+          "description": "Temporada 1 · Episodio 2",
+          "type": "serie",
+          "url": "https://hugh.cdn.rumble.cloud/video/fww1/cb/s8/2/a/u/r/2/aur2A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 1479,
+          "enabled": true
+        },
+        {
+          "id": "dragon-ball-s01e03",
+          "title": "Dragon Ball S01 E03",
+          "description": "Temporada 1 · Episodio 3",
+          "type": "serie",
+          "url": "https://hugh.cdn.rumble.cloud/video/fww1/58/s8/2/o/y/r/2/oyr2A.aaa.mp4",
+          "streamFormat": "mp4",
+          "durationSeconds": 1479,
           "enabled": true
         }
       ]
