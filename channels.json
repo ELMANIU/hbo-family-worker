@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "configVersion": "2026-10-03.4",
+  "configVersion": "2026-10-04.2",
   "updatedAt": "2026-10-03T23:15:33Z",
   "channels": {
     "hbofamily": {
@@ -12,7 +12,7 @@
       "categoryTitle": "Películas",
       "specialKey": "hbofamily",
       "playerStyle": "hbofamily",
-      "epoch": 1790899200,
+      "epoch": 1791076907,
 
       "logo": "https://dl.dropbox.com/scl/fi/xrmzyc8adckx1tlmm4f8x/file_00000000a2a881f59d942a6bd7b621f7.png?rlkey=f5ou7txcpixpu92nvmnhsid64&st=w36imzos&dl=0",
 
@@ -143,13 +143,13 @@
   "playerStyle": "fenixapocalipsis",
   "playerTitleMode": "channelOnly",
 
-  "epoch": 1791162000,
+  "epoch": 1791076907,
 
   "logo": "https://i.postimg.cc/T2Jcbsww/file-00000000bc5c81f592fafd071253e21d.png",
   "channelBugUrl": "https://i.postimg.cc/T2Jcbsww/file-00000000bc5c81f592fafd071253e21d.png",
 
-  "channelBugOpacity": 0.93,
-  "channelBugScale": 1.40,
+  "channelBugOpacity": 0.92,
+  "channelBugScale": 1.70,
   "channelBugAnimation": true,
   "channelBugAnimationIntervalSeconds": 420,
 
@@ -193,7 +193,7 @@
       "enabled": true
     }
   ]
-    },
+},
 
     "bitme": {
       "enabled": true,
