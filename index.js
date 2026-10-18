@@ -1,16 +1,17 @@
 // ============================================================
-// FÉNIX TV — MULTICHANNEL LINEAR DIRECT WORKER v3.2.0
-// FÉNIX TV STUDIO + CANALES FÉNIX (CATEGORÍA AUTOMÁTICA)
+// FÉNIX TV — MULTICHANNEL LINEAR DIRECT WORKER v3.4.0
+// FÉNIX TV STUDIO + REUTILIZAR ENTRETENIMIENTO COMO CANALES FÉNIX
 // MP4 / MKV / HLS + EPG + NOW/NEXT + COMERCIALES + QUEUE
 // Compatible con rutas legacy del reproductor.
 // ============================================================
 
-const WORKER_VERSION = "3.2.0-fenix-studio-categoria-automatica";
+const WORKER_VERSION = "3.4.0-fenix-studio-reutiliza-entretenimiento";
 const DEFAULT_REMOTE_CONFIG_URL =
   "https://raw.githubusercontent.com/ELMANIU/hbo-family-worker/refs/heads/main/channels.json";
 const DEFAULT_UPSTREAM_CATALOG_URL =
   "https://raw.githubusercontent.com/ELMANIU/Roku-feed/main/catalog.json";
-const FENIX_CATEGORY_KEY = "canales-fenix";
+const FENIX_CATEGORY_KEY = "entretenimiento"; // Clave preexistente de TV; no crea otra categoría.
+const OLD_FENIX_CATEGORY_KEY = "canales-fenix";
 const FENIX_CATEGORY_TITLE = "Canales Fénix";
 const CONFIG_TTL_MS = 20_000;
 const UPSTREAM_TTL_MS = 30_000;
@@ -435,8 +436,8 @@ function guideEvents(channel,timeline,fromSeconds,untilSeconds) {
 // ----------------------------- JSON DE CANAL Y CATÁLOGO -----------------------------
 function buildChannelJson(channel,baseUrl,status=null) {
   const root=baseUrl+"/channel/"+channel.key;
-  // Los canales administrados siempre pertenecen a «Canales Fénix».
-  // La clasificación particular del panel se conserva en subCategoryKey/Title.
+  // Los canales administrados comparten la clave de la categoría «Entretenimiento».
+  // El nombre presentado es «Canales Fénix». La clasificación del panel queda en subCategoryKey/Title.
   const item={id:channel.id,contentId:channel.id,enabled:true,
     Title:channel.name,title:channel.name,name:channel.name,Description:channel.description,
     CategoryKey:FENIX_CATEGORY_KEY,CategoryTitle:FENIX_CATEGORY_TITLE,
@@ -495,50 +496,108 @@ function isManagedChannel(item,managed) {
   const ids=new Set(channelIdentity(item));
   return managed.some(ch=>[ch.id,ch.key,ch.specialKey,ch.name].some(value=>ids.has(slug(value))));
 }
+function categoryIdentity(category) {
+  if (!category || typeof category !== "object") return [];
+  return [category.Key,category.key,category.id,category.Id,
+    category.Title,category.title,category.Name,category.name,
+    category.CategoryKey,category.CategoryTitle,category.categoryKey,
+    category.categoryTitle,category.slug]
+    .map(slug).filter(Boolean);
+}
 function isFenixCategory(category) {
-  return slug(category?.Key||category?.key)===FENIX_CATEGORY_KEY ||
-    slug(category?.Title||category?.title)===FENIX_CATEGORY_KEY;
+  return categoryIdentity(category).includes(OLD_FENIX_CATEGORY_KEY) ||
+    categoryIdentity(category).includes(slug(FENIX_CATEGORY_TITLE));
+}
+function isEntertainmentCategory(category) {
+  // Admite traducción inglesa, prefijo "tv-" y variantes usuales del catálogo.
+  return categoryIdentity(category).some(label =>
+    /(?:^|-)(?:entretenimiento|entertainment)(?:-|$)/.test(label));
+}
+function categoryOriginalKey(category) {
+  return stringValue(
+    category?.Key || category?.key || category?.CategoryKey ||
+    category?.categoryKey || category?.id || category?.Id,
+    FENIX_CATEGORY_KEY
+  );
+}
+function renamedEntertainmentCategory(original, key, channels) {
+  const category = {
+    ...original,
+    Key: key,
+    Title: FENIX_CATEGORY_TITLE,
+    Description: "Nuestros canales FÉNIX TV con programación lineal 24/7.",
+    Channels: channels
+  };
+  // Actualizar también los alias que YA tenga el catálogo.
+  for (const labelKey of ["title", "Name", "name", "CategoryTitle", "categoryTitle"]) {
+    if (Object.prototype.hasOwnProperty.call(original,labelKey)) {
+      category[labelKey] = FENIX_CATEGORY_TITLE;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(original,"channels")) {
+    category.channels = channels;
+  }
+  return category;
 }
 async function buildMergedCatalog(request,env,config) {
-  const baseUrl=publicBaseUrl(request,env);
-  const upstream=deepClone(await loadUpstreamCatalog(env));
-  const managed=config.channels;
+  const baseUrl = publicBaseUrl(request,env);
+  const upstream = deepClone(await loadUpstreamCatalog(env));
+  const managed = config.channels;
   delete upstream.catalogUrl;
-  if(!Array.isArray(upstream.linearChannels)) upstream.linearChannels=[];
-  if(!Array.isArray(upstream.tvCategories)) upstream.tvCategories=[];
+  if (!Array.isArray(upstream.linearChannels)) upstream.linearChannels = [];
+  if (!Array.isArray(upstream.tvCategories)) upstream.tvCategories = [];
 
-  // Evita versiones antiguas de los canales en dos secciones distintas.
-  upstream.linearChannels=upstream.linearChannels.filter(item=>!isManagedChannel(item,managed));
-  upstream.tvCategories=upstream.tvCategories
-    .filter(category=>category && !isFenixCategory(category))
-    .map(category=>{
-      if(Array.isArray(category.Channels))
-        category.Channels=category.Channels.filter(item=>!isManagedChannel(item,managed));
+  const categories = upstream.tvCategories.filter(item => item && typeof item === "object");
+  // Se conserva la categoría Entretenimiento que YA existe en el catálogo.
+  const reusedCategory = categories.find(item => isEntertainmentCategory(item) && !isFenixCategory(item));
+  const reusedKey = reusedCategory ? categoryOriginalKey(reusedCategory) : FENIX_CATEGORY_KEY;
+
+  // Conserva todas las señales externas; quita solo versiones viejas de canales gestionados.
+  upstream.linearChannels = upstream.linearChannels.filter(item => !isManagedChannel(item, managed));
+  const nowSeconds = Date.now()/1000;
+  const fenixChannels = [];
+  for (const channel of managed) {
+    const timeline = await getTimeline(config,channel);
+    const state = livePosition(channel,timeline,nowSeconds);
+    const status = buildStatus(config,channel,timeline,state,nowSeconds,baseUrl);
+    const item = buildChannelJson(channel,baseUrl,status);
+    item.CategoryKey = reusedKey;
+    item.CategoryTitle = FENIX_CATEGORY_TITLE;
+    fenixChannels.push(item);
+    // Compatibilidad: las versiones de app que leen linearChannels aún los encuentran.
+    upstream.linearChannels.push(item);
+  }
+
+  // No crea otra categoría: transforma Entretenimiento en el MISMO lugar y con su Key.
+  // Elimina únicamente la antigua categoría dinámica "canales-fenix" (v3.2).
+  upstream.tvCategories = categories
+    .filter(item => !isFenixCategory(item))
+    .map(category => {
+      if (category === reusedCategory) {
+        return renamedEntertainmentCategory(category,reusedKey,fenixChannels);
+      }
+      if (Array.isArray(category.Channels)) {
+        category.Channels = category.Channels.filter(item => !isManagedChannel(item,managed));
+      }
+      if (Array.isArray(category.channels)) {
+        category.channels = category.channels.filter(item => !isManagedChannel(item,managed));
+      }
       return category;
     });
 
-  const nowSeconds=Date.now()/1000;
-  const fenixChannels=[];
-  for(const channel of managed) {
-    const timeline=await getTimeline(config,channel);
-    const state=livePosition(channel,timeline,nowSeconds);
-    const status=buildStatus(config,channel,timeline,state,nowSeconds,baseUrl);
-    const item=buildChannelJson(channel,baseUrl,status);
-    fenixChannels.push(item);
-    upstream.linearChannels.push(item); // No romper builds antiguos de la aplicación.
-  }
-
-  // Categoría fija: se actualiza sola al agregar, editar o quitar canales en el panel.
-  upstream.tvCategories.unshift({
-    Title:FENIX_CATEGORY_TITLE,Key:FENIX_CATEGORY_KEY,
-    Description:"Canales exclusivos de FÉNIX TV con programación 24/7.",
-    Channels:fenixChannels
-  });
-
-  upstream.schemaVersion=numberValue(upstream.schemaVersion,1);
-  upstream.updatedAt=new Date().toISOString();
-  upstream.fenixMultichannelWorker={version:WORKER_VERSION,configRevision:config.revision,
-    configSource:config.source,channelCount:managed.length,fenixCategoryKey:FENIX_CATEGORY_KEY};
+  upstream.schemaVersion = numberValue(upstream.schemaVersion,1);
+  upstream.updatedAt = new Date().toISOString();
+  upstream.fenixMultichannelWorker = {
+    version:WORKER_VERSION,
+    configRevision:config.revision,
+    configSource:config.source,
+    channelCount:managed.length,
+    fenixCategoryKey:reusedKey,
+    fenixCategoryTitle:FENIX_CATEGORY_TITLE,
+    reusedExistingEntertainmentCategory:!!reusedCategory,
+    warning:reusedCategory ? "" :
+      "No se encontró Entretenimiento dentro de tvCategories. No se creó una categoría nueva. Comprueba dónde guarda las categorías tu aplicación."
+  };
   return upstream;
 }
 
@@ -667,4 +726,4 @@ export default {
 
 // Funciones exportadas para pruebas locales, sin cambiar el comportamiento del Worker.
 export const __test={normalizeConfig,buildTimeline,livePosition,buildStatus,
-  buildPlaybackQueue,guideEvents,buildMergedCatalog,isFenixCategory,buildChannelJson};
+  buildPlaybackQueue,guideEvents,buildMergedCatalog,isFenixCategory,isEntertainmentCategory,buildChannelJson};
