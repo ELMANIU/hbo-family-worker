@@ -5,7 +5,7 @@
 // Compatible con rutas legacy del reproductor.
 // ============================================================
 
-const WORKER_VERSION = "3.4.0-fenix-studio-reutiliza-entretenimiento";
+const WORKER_VERSION = "3.5.0-fenix-studio-vod-peliculas-series";
 const DEFAULT_REMOTE_CONFIG_URL =
   "https://raw.githubusercontent.com/ELMANIU/hbo-family-worker/refs/heads/main/channels.json";
 const DEFAULT_UPSTREAM_CATALOG_URL =
@@ -539,10 +539,90 @@ function renamedEntertainmentCategory(original, key, channels) {
   }
   return category;
 }
+// ------------------------------------------------------------------
+// VOD desde el panel: películas y episodios se fusionan sobre Roku-feed
+// sin perder ni alterar el resto del catálogo.
+// ------------------------------------------------------------------
+const DEFAULT_VOD_CONFIG_URL = 'https://fenix-tv-studio-panel.elmanuchale.workers.dev/vod.json';
+const VOD_CONFIG_TTL_MS = 25_000;
+let vodCache = null, vodCacheAt = 0, vodPromise = null;
+async function loadVodCatalog(env) {
+  if (String(env.DISABLE_VOD_CONFIG || '') === '1') return {movies:[],series:[],source:'disabled',warning:''};
+  const now=Date.now();
+  if (vodCache&&now-vodCacheAt<VOD_CONFIG_TTL_MS) return vodCache;
+  if (vodPromise) return vodPromise;
+  vodPromise=(async()=>{
+    const url=stringValue(env.VOD_CONFIG_URL, DEFAULT_VOD_CONFIG_URL);
+    try{
+      const res=await fetchJsonText(url,'FenixTV-VOD/'+WORKER_VERSION,0);
+      const data=res.parsed;
+      if (!data||!Array.isArray(data.movies)||!Array.isArray(data.series))throw new Error('vod.json no tiene movies[] y series[]');
+      return {movies:data.movies,series:data.series,source:res.finalUrl,warning:''};
+    }catch(e){
+      console.warn('VOD adicional no disponible. Se conserva el catálogo original:', errorText(e));
+      return {movies:[],series:[],source:url,warning:errorText(e)};
+    }
+  })().then(x=>{vodCache=x;vodCacheAt=Date.now();return x;}).finally(()=>{vodPromise=null;});
+  return vodPromise;
+}
+function vodText(v){return String(v||'').trim()}
+function vodIdentity(m){
+  const id=vodText(m.id||m.contentId||m.slug), name=vodText(m.Title||m.title||m.name);
+  return {id:slug(id),title:slug(name),year:vodText(m.Year||m.year),tmdbId:vodText(m.tmdbId)};
+}
+function findVodMatch(collection,item){
+  const target=vodIdentity(item);
+  return collection.findIndex(existing=>{
+    const a=vodIdentity(existing);
+    if (target.tmdbId&&a.tmdbId&&target.tmdbId===a.tmdbId)return true;
+    if (target.id&&a.id&&target.id===a.id)return true;
+    return !!(target.title&&a.title===target.title&&(!a.year||!target.year||a.year===target.year));
+  });
+}
+function mergeVodEpisodes(existingEpisodes, additions){
+  const result=Array.isArray(existingEpisodes)?existingEpisodes.slice():[];
+  for (const ep of additions||[]){
+    if (!ep||!ep.Url||ep.enabled===false)continue;
+    const index=result.findIndex(item=>{
+      if (item.id&&ep.id&&item.id===ep.id)return true;
+      const season=Number(item.season??item.Season),num=Number(item.episode??item.Episode);
+      return Number.isFinite(season)&&Number.isFinite(num)&&
+        season===Number(ep.season??ep.Season)&&num===Number(ep.episode??ep.Episode);
+    });
+    if(index>=0)result[index]={...result[index],...ep};
+    else result.push(ep);
+  }
+  result.sort((a,b)=>Number(a.season??a.Season??0)-Number(b.season??b.Season??0)||Number(a.episode??a.Episode??0)-Number(b.episode??b.Episode??0));
+  return result;
+}
+function mergeManagedVod(upstream, managed){
+  if (!Array.isArray(upstream.movies))upstream.movies=[];
+  if (!Array.isArray(upstream.series))upstream.series=[];
+  for(const movie of managed.movies||[]){
+    if(!movie||movie.enabled===false||!movie.Url)continue;
+    const ix=findVodMatch(upstream.movies,movie);
+    if(ix>=0)upstream.movies[ix]={...upstream.movies[ix],...movie};
+    else upstream.movies.push(movie);
+  }
+  for(const series of managed.series||[]){
+    if(!series||series.enabled===false)continue;
+    const ix=findVodMatch(upstream.series,series);
+    if(ix>=0){
+      const original=upstream.series[ix];
+      upstream.series[ix]={...original,...series,episodes:mergeVodEpisodes(original.episodes,series.episodes)};
+    }else upstream.series.push({...series,episodes:mergeVodEpisodes([],series.episodes)});
+  }
+  return upstream;
+}
+
 async function buildMergedCatalog(request,env,config) {
   const baseUrl = publicBaseUrl(request,env);
   const upstream = deepClone(await loadUpstreamCatalog(env));
   const managed = config.channels;
+  // Mezcla las películas, series y capítulos guardados en Fénix TV Studio.
+  // Si el panel está temporalmente inaccesible, devuelve intacto Roku-feed.
+  const vod = await loadVodCatalog(env);
+  mergeManagedVod(upstream,vod);
   delete upstream.catalogUrl;
   if (!Array.isArray(upstream.linearChannels)) upstream.linearChannels = [];
   if (!Array.isArray(upstream.tvCategories)) upstream.tvCategories = [];
@@ -594,6 +674,10 @@ async function buildMergedCatalog(request,env,config) {
     channelCount:managed.length,
     fenixCategoryKey:reusedKey,
     fenixCategoryTitle:FENIX_CATEGORY_TITLE,
+    vodConfigSource:vod.source,
+    managedMovieCount:vod.movies.length,
+    managedSeriesCount:vod.series.length,
+    vodWarning:vod.warning,
     reusedExistingEntertainmentCategory:!!reusedCategory,
     warning:reusedCategory ? "" :
       "No se encontró Entretenimiento dentro de tvCategories. No se creó una categoría nueva. Comprueba dónde guarda las categorías tu aplicación."
@@ -726,4 +810,4 @@ export default {
 
 // Funciones exportadas para pruebas locales, sin cambiar el comportamiento del Worker.
 export const __test={normalizeConfig,buildTimeline,livePosition,buildStatus,
-  buildPlaybackQueue,guideEvents,buildMergedCatalog,isFenixCategory,isEntertainmentCategory,buildChannelJson};
+  buildPlaybackQueue,guideEvents,buildMergedCatalog,isFenixCategory,isEntertainmentCategory,buildChannelJson,mergeManagedVod,mergeVodEpisodes,findVodMatch};
