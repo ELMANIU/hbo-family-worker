@@ -5,7 +5,7 @@
 // Compatible con rutas legacy del reproductor.
 // ============================================================
 
-const WORKER_VERSION = "3.5.0-fenix-studio-vod-peliculas-series";
+const WORKER_VERSION = "3.6.0-fenix-studio-tandas-publicitarias";
 const DEFAULT_REMOTE_CONFIG_URL =
   "https://raw.githubusercontent.com/ELMANIU/hbo-family-worker/refs/heads/main/channels.json";
 const DEFAULT_UPSTREAM_CATALOG_URL =
@@ -162,6 +162,21 @@ function normalizeChannel(hint, raw) {
   const adUrl=stringValue(ads.url||schedule.commercialUrl||raw.commercialUrl);
   const adDuration=numberValue(ads.durationSeconds||schedule.adDuration||schedule.commercialDuration||raw.commercialDuration,0);
   const adInterval=numberValue(ads.intervalSeconds||schedule.adInterval||schedule.adIntervalSeconds||raw.adInterval,0);
+  const adSpots=Array.isArray(ads.spots)?ads.spots.map((spot,index)=>{
+    const url=stringValue(spot?.url);
+    const durationSeconds=numberValue(spot?.durationSeconds,0);
+    const streamFormat=stringValue(spot?.streamFormat,inferFormat(url)).toLowerCase();
+    if(!url || !(durationSeconds>0) || !["mp4","mkv","hls"].includes(streamFormat))
+      throw new Error("Anuncio inválido número "+(index+1)+" en "+name);
+    return {url,durationSeconds,streamFormat};
+  }):[];
+  const adMode=stringValue(ads.scheduleMode,"legacy");
+  if(adMode==="broadcast" && boolValue(ads.enabled,false)){
+    const interval=numberValue(ads.intervalSeconds,0);
+    if(!adSpots.length || !(interval>=300) || !(interval<=10800) ||
+       adSpots.reduce((sum,spot)=>sum+spot.durationSeconds,0)>=interval)
+      throw new Error("Tanda publicitaria incompatible con intervalo en "+name);
+  }
   return {
     key,id:stringValue(raw.id||raw.contentId,key),name,
     description:stringValue(raw.description||raw.Description||raw.descripcion,"Canal lineal 24/7."),
@@ -186,7 +201,8 @@ function normalizeChannel(hint, raw) {
       durationSeconds:adDuration,intervalSeconds:adInterval,
       protectStartSeconds:numberValue(ads.protectStartSeconds,60),
       protectEndSeconds:numberValue(ads.protectEndSeconds,60),
-      betweenPrograms:boolValue(ads.betweenPrograms,false), legacyTsUrl:stringValue(ads.legacyTsUrl)},
+      betweenPrograms:boolValue(ads.betweenPrograms,false), legacyTsUrl:stringValue(ads.legacyTsUrl),
+      spots:adSpots,scheduleMode:adMode},
     programs
   };
 }
@@ -300,10 +316,11 @@ function appendProgramBlock(timeline,program,programIndex,sourceStart,sourceEnd)
     start:timeline.total,end:timeline.total+duration,duration});
   timeline.total+=duration;
 }
-function appendCommercialBlock(timeline,channel,programIndex,commercialNumber) {
-  const c=channel.commercial;
-  if(!c.enabled||!c.url||!(c.durationSeconds>0)) return;
-  timeline.blocks.push({id:`commercial-${programIndex}-${commercialNumber}`,kind:"commercial",isCommercial:true,
+function appendCommercialBlock(timeline,channel,programIndex,commercialNumber,spot=null,spotNumber=1) {
+  const c=spot || channel.commercial;
+  if(!channel.commercial.enabled || !c.url || !(c.durationSeconds>0)) return;
+  const id=spot ? `commercial-${programIndex}-${commercialNumber}-${spotNumber}` : `commercial-${programIndex}-${commercialNumber}`;
+  timeline.blocks.push({id,kind:"commercial",isCommercial:true,
     programIndex,title:"Corte comercial",description:"Corte comercial Fénix TV.",type:"comercial",url:c.url,
     streamFormat:c.streamFormat||inferFormat(c.url),aspectRatio:"16:9",sourceStart:0,sourceEnd:c.durationSeconds,
     start:timeline.total,end:timeline.total+c.durationSeconds,duration:c.durationSeconds});
@@ -313,22 +330,53 @@ async function buildTimeline(channel) {
   const programs=await resolvedPrograms(channel);
   const timeline={channelKey:channel.key,programs,blocks:[],programWindows:[],total:0};
   const ad=channel.commercial;
-  const intervalEnabled=ad.enabled&&!!ad.url&&ad.durationSeconds>0&&ad.intervalSeconds>0;
-  for(let i=0;i<programs.length;i++) {
-    const p=programs[i],start=timeline.total;
-    let cursor=0,adCount=0;
-    if(intervalEnabled) {
-      for(let cut=ad.intervalSeconds;cut<p.durationSeconds;cut+=ad.intervalSeconds) {
-        if(cut<ad.protectStartSeconds || p.durationSeconds-cut<ad.protectEndSeconds) continue;
-        appendProgramBlock(timeline,p,i,cursor,cut);
-        appendCommercialBlock(timeline,channel,i,++adCount);
-        cursor=cut;
+  const broadcast=ad.enabled && ad.scheduleMode==="broadcast" && Array.isArray(ad.spots) && ad.spots.length>0;
+  if(broadcast){
+    // Cada 30 minutos (o intervalo configurado) de tiempo de emisión, no por película.
+    // Se cuenta también la publicidad para mantener una separación uniforme de tandas.
+    let nextBreakAt=ad.intervalSeconds,breakNumber=0;
+    for(let i=0;i<programs.length;i++){
+      const p=programs[i],start=timeline.total;
+      let cursor=0,adCount=0;
+      while(cursor<p.durationSeconds){
+        const gap=nextBreakAt-timeline.total;
+        if(gap>0.0001){
+          const until=Math.min(p.durationSeconds,cursor+gap);
+          appendProgramBlock(timeline,p,i,cursor,until);
+          cursor=until;
+          if(cursor>=p.durationSeconds-0.0001)break;
+        }
+        if(nextBreakAt<=timeline.total+0.0001){
+          breakNumber++;
+          for(let j=0;j<ad.spots.length;j++){
+            appendCommercialBlock(timeline,channel,i,breakNumber,ad.spots[j],j+1);
+            adCount++;
+          }
+          nextBreakAt+=ad.intervalSeconds;
+        }
       }
+      timeline.programWindows.push({programIndex:i,start,end:timeline.total,
+        wallDuration:timeline.total-start,contentDuration:p.durationSeconds,commercialCount:adCount});
     }
-    appendProgramBlock(timeline,p,i,cursor,p.durationSeconds);
-    if(ad.enabled&&ad.betweenPrograms&&ad.url&&ad.durationSeconds>0) appendCommercialBlock(timeline,channel,i,++adCount);
-    timeline.programWindows.push({programIndex:i,start,end:timeline.total,wallDuration:timeline.total-start,
-      contentDuration:p.durationSeconds,commercialCount:adCount});
+  } else {
+    // Compatibilidad intacta: canales viejos con un solo anuncio por programa.
+    const intervalEnabled=ad.enabled&&!!ad.url&&ad.durationSeconds>0&&ad.intervalSeconds>0;
+    for(let i=0;i<programs.length;i++) {
+      const p=programs[i],start=timeline.total;
+      let cursor=0,adCount=0;
+      if(intervalEnabled) {
+        for(let cut=ad.intervalSeconds;cut<p.durationSeconds;cut+=ad.intervalSeconds) {
+          if(cut<ad.protectStartSeconds || p.durationSeconds-cut<ad.protectEndSeconds) continue;
+          appendProgramBlock(timeline,p,i,cursor,cut);
+          appendCommercialBlock(timeline,channel,i,++adCount);
+          cursor=cut;
+        }
+      }
+      appendProgramBlock(timeline,p,i,cursor,p.durationSeconds);
+      if(ad.enabled&&ad.betweenPrograms&&ad.url&&ad.durationSeconds>0) appendCommercialBlock(timeline,channel,i,++adCount);
+      timeline.programWindows.push({programIndex:i,start,end:timeline.total,wallDuration:timeline.total-start,
+        contentDuration:p.durationSeconds,commercialCount:adCount});
+    }
   }
   if(!(timeline.total>0)||!timeline.blocks.length) throw new Error("La línea de tiempo quedó vacía para "+channel.name);
   return timeline;
@@ -723,6 +771,11 @@ async function channelResponse(request,env,config,channel,subpath,headOnly) {
     commercialEveryMinutes:channel.commercial.intervalSeconds>0?channel.commercial.intervalSeconds/60:0,
     commercialDurationSeconds:channel.commercial.durationSeconds,
     commercialPlaybackFormat:channel.commercial.streamFormat,
+    commercialScheduleMode:channel.commercial.scheduleMode||"legacy",
+    commercialSpotCount:channel.commercial.spots?.length|| (channel.commercial.enabled?1:0),
+    commercialBreakDurationSeconds:channel.commercial.scheduleMode==="broadcast"
+      ? channel.commercial.spots.reduce((total,spot)=>total+spot.durationSeconds,0)
+      : channel.commercial.durationSeconds,
     playbackQueueHorizonHours:channel.queueHorizonSeconds/3600,
     channelBugAnimation:channel.channelBugAnimation,
     channelBugAnimationIntervalSeconds:channel.channelBugAnimationIntervalSeconds,
